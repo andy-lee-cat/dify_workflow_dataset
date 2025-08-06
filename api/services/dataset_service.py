@@ -1361,6 +1361,33 @@ class DocumentService:
                         document_ids.append(document.id)
                         documents.append(document)
                         position += 1
+                elif knowledge_config.data_source.info_list.data_source_type == "app_import":  # type: ignore
+                    app_info = knowledge_config.data_source.info_list.app_info  # type: ignore
+                    if not app_info:
+                        raise ValueError("No app info found")
+                    data_source_info = app_info.model_dump()
+                    document_name = data_source_info.get("inputs", {}).get("document_name", "Untitled App Document")
+                    if len(document_name) > 255:
+                        document_name = document_name[:250] + '...'
+                    
+                    document = DocumentService.build_document(
+                        dataset,
+                        dataset_process_rule.id,  # type: ignore
+                        knowledge_config.data_source.info_list.data_source_type,  # type: ignore
+                        knowledge_config.doc_form,
+                        knowledge_config.doc_language,
+                        data_source_info,
+                        created_from,
+                        position,
+                        account,
+                        document_name,
+                        batch,
+                    )
+                    db.session.add(document)
+                    db.session.flush()
+                    document_ids.append(document.id)
+                    documents.append(document)
+                    position += 1
                 db.session.commit()
 
                 # trigger async task

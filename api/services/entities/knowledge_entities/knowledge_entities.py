@@ -1,5 +1,6 @@
+from collections.abc import Mapping
 from enum import StrEnum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -38,11 +39,17 @@ class FileInfo(BaseModel):
     file_ids: list[str]
 
 
+class AppDataSourceInfo(BaseModel):
+    app_id: str
+    inputs: Optional[Mapping[str, Any]] = None
+
+
 class InfoList(BaseModel):
-    data_source_type: Literal["upload_file", "notion_import", "website_crawl"]
+    data_source_type: Literal["upload_file", "notion_import", "website_crawl", "app_import"]
     notion_info_list: Optional[list[NotionInfo]] = None
     file_info_list: Optional[FileInfo] = None
     website_info_list: Optional[WebsiteInfo] = None
+    app_info: Optional[AppDataSourceInfo] = None
 
 
 class DataSource(BaseModel):

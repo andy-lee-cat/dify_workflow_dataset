@@ -337,9 +337,9 @@ class IndexingRunner:
         self, index_processor: BaseIndexProcessor, dataset_document: DatasetDocument, process_rule: dict
     ) -> list[Document]:
         # load file
-        if dataset_document.data_source_type not in {"upload_file", "notion_import", "website_crawl"}:
+        if dataset_document.data_source_type not in {"upload_file", "notion_import", "website_crawl", "app_import"}:
             return []
-
+        logging.warning("IN _extract")
         data_source_info = dataset_document.data_source_info_dict
         text_docs = []
         if dataset_document.data_source_type == "upload_file":
@@ -391,6 +391,21 @@ class IndexingRunner:
                     "url": data_source_info["url"],
                     "mode": data_source_info["mode"],
                     "only_main_content": data_source_info["only_main_content"],
+                },
+                document_model=dataset_document.doc_form,
+            )
+            text_docs = index_processor.extract(extract_setting, process_rule_mode=process_rule["mode"])
+        elif dataset_document.data_source_type == "app_import":
+            if not data_source_info or "app_id" not in data_source_info:
+                raise ValueError("app_id is required for app_import")
+
+            extract_setting = ExtractSetting(
+                datasource_type=dataset_document.data_source_type,
+                app_info={ 
+                    "app_id": data_source_info["app_id"],
+                    "inputs": data_source_info.get("inputs"),
+                    "user_id": dataset_document.created_by,
+                    "tenant_id": dataset_document.tenant_id,
                 },
                 document_model=dataset_document.doc_form,
             )

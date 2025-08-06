@@ -6,6 +6,7 @@ from urllib.parse import unquote
 
 from configs import dify_config
 from core.helper import ssrf_proxy
+from core.rag.extractor.app_extractor import AppExtractor
 from core.rag.extractor.csv_extractor import CSVExtractor
 from core.rag.extractor.entity.datasource_type import DatasourceType
 from core.rag.extractor.entity.extract_setting import ExtractSetting
@@ -204,5 +205,13 @@ class ExtractProcessor:
                 return extractor.extract()
             else:
                 raise ValueError(f"Unsupported website provider: {extract_setting.website_info.provider}")
+        elif extract_setting.datasource_type == DatasourceType.APP.value:
+            extractor = AppExtractor(
+                app_id=extract_setting.app_info.app_id,
+                inputs=extract_setting.app_info.inputs,
+                user_id=extract_setting.app_info.user_id,
+                tenant_id=extract_setting.app_info.tenant_id,
+            )
+            return extractor.extract()
         else:
             raise ValueError(f"Unsupported datasource type: {extract_setting.datasource_type}")

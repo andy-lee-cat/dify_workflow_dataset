@@ -1,4 +1,5 @@
-from typing import Optional
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -37,6 +38,16 @@ class WebsiteInfo(BaseModel):
     only_main_content: bool = False
 
 
+class AppInfo(BaseModel):
+    """
+    App import info.
+    """
+    app_id: str
+    inputs: Optional[Mapping[str, Any]] = None
+    user_id: str
+    tenant_id: str
+
+
 class ExtractSetting(BaseModel):
     """
     Model class for provider response.
@@ -46,6 +57,7 @@ class ExtractSetting(BaseModel):
     upload_file: Optional[UploadFile] = None
     notion_info: Optional[NotionInfo] = None
     website_info: Optional[WebsiteInfo] = None
+    app_info: Optional[AppInfo] = None
     document_model: Optional[str] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
