@@ -62,7 +62,7 @@ class AppExtractor(BaseExtractor):
         data_payload = result_dict.get('data', {})  # type: ignore
         outputs = data_payload.get('outputs', {})
 
-        # 规定 app 的输出必须包含 'text' 字段
+        # The app's output must contain the 'text' field
         extracted_text = outputs.get('text', '')
 
         if not extracted_text:
