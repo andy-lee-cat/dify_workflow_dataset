@@ -312,7 +312,7 @@ class ToolNode(BaseNode):
                 )
             elif message.type == ToolInvokeMessage.MessageType.TEXT:
                 import logging
-                logging.warning(f"message: {message.message}")
+                logging.warning("message: %s", message.message)
                 # 我觉得就这里包装一下就行吧
                 assert isinstance(message.message, ToolInvokeMessage.TextMessage)
                 text += message.message.text
