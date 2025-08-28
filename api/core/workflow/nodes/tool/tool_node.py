@@ -99,6 +99,8 @@ class ToolNode(BaseNode):
             variable_pool=self.graph_runtime_state.variable_pool,
             node_data=self._node_data,
         )
+        if self._node_data.streaming:
+            parameters['__tool_streaming'] = True
         parameters_for_log = self._generate_parameters(
             tool_parameters=tool_parameters,
             variable_pool=self.graph_runtime_state.variable_pool,
@@ -237,6 +239,7 @@ class ToolNode(BaseNode):
         """
         Convert ToolInvokeMessages into tuple[plain_text, files]
         """
+        is_streaming = self._node_data.streaming
         # transform message and handle file storage
         message_stream = ToolFileMessageTransformer.transform_tool_invoke_messages(
             messages=messages,
@@ -308,6 +311,9 @@ class ToolNode(BaseNode):
                     )
                 )
             elif message.type == ToolInvokeMessage.MessageType.TEXT:
+                import logging
+                logging.warning(f"message: {message.message}")
+                # 我觉得就这里包装一下就行吧
                 assert isinstance(message.message, ToolInvokeMessage.TextMessage)
                 text += message.message.text
                 yield RunStreamChunkEvent(chunk_content=message.message.text, from_variable_selector=[node_id, "text"])

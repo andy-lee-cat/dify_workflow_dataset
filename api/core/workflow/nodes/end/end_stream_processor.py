@@ -51,7 +51,14 @@ class EndStreamProcessor(StreamProcessor):
                     self.current_stream_chunk_generating_node_ids[event.route_node_state.node_id] = (
                         stream_out_end_node_ids
                     )
-
+                # +++++++++++++++++++++++++++++ START OF LOGGING +++++++++++++++++++++++++++++
+                if not stream_out_end_node_ids:
+                    logger.warning("EndStreamProcessor: No end node is configured to stream this event. "
+                                   "Event from selector %s will be DROPPED.", event.from_variable_selector)
+                else:
+                    logger.info("EndStreamProcessor: Event from selector %s "
+                                "will be streamed by end_node(s): %s", event.from_variable_selector, stream_out_end_node_ids)
+                # ++++++++++++++++++++++++++++++ END OF LOGGING ++++++++++++++++++++++++++++++
                 if stream_out_end_node_ids:
                     if self.has_output and event.node_id not in self.output_node_ids:
                         event.chunk_content = "\n" + event.chunk_content
