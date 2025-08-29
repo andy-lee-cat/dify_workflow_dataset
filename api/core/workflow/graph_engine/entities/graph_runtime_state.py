@@ -29,3 +29,6 @@ class GraphRuntimeState(BaseModel):
 
     node_run_state: RuntimeRouteState = RuntimeRouteState()
     """node run state"""
+    
+    streaming: bool = False
+    """workflow streaming setting"""

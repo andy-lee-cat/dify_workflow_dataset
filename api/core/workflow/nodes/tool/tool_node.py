@@ -99,7 +99,7 @@ class ToolNode(BaseNode):
             variable_pool=self.graph_runtime_state.variable_pool,
             node_data=self._node_data,
         )
-        if self._node_data.streaming:
+        if getattr(self.graph_runtime_state, 'streaming', False):
             parameters['__tool_streaming'] = True
         parameters_for_log = self._generate_parameters(
             tool_parameters=tool_parameters,
@@ -160,22 +160,23 @@ class ToolNode(BaseNode):
                     inputs=parameters_for_log,
                     metadata={WorkflowNodeExecutionMetadataKey.TOOL_INFO: tool_info},
                     error="An error occurred in the plugin, "
-                    f"please contact the author of {node_data.provider_name} for help, "
-                    f"error type: {e.get_error_type()}, "
-                    f"error details: {e.get_error_message()}",
+                    + (
+                        f": {str(e)}"
+                        if not isinstance(e, PluginDaemonClientSideError)
+                        else f"(client error): {str(e)}"
+                    ),
                     error_type=type(e).__name__,
                 )
             )
-        except PluginDaemonClientSideError as e:
-            yield RunCompletedEvent(
-                run_result=NodeRunResult(
-                    status=WorkflowNodeExecutionStatus.FAILED,
-                    inputs=parameters_for_log,
-                    metadata={WorkflowNodeExecutionMetadataKey.TOOL_INFO: tool_info},
-                    error=f"Failed to invoke tool, error: {e.description}",
-                    error_type=type(e).__name__,
-                )
+            return
+
+        yield RunCompletedEvent(
+            run_result=NodeRunResult(
+                status=WorkflowNodeExecutionStatus.SUCCEEDED,
+                inputs=parameters_for_log,
+                metadata={WorkflowNodeExecutionMetadataKey.TOOL_INFO: tool_info},
             )
+        )
 
     def _generate_parameters(
         self,
@@ -310,9 +311,6 @@ class ToolNode(BaseNode):
                     )
                 )
             elif message.type == ToolInvokeMessage.MessageType.TEXT:
-                import logging
-                logging.warning("message: %s", message.message)
-                # 我觉得就这里包装一下就行吧
                 assert isinstance(message.message, ToolInvokeMessage.TextMessage)
                 text += message.message.text
                 yield RunStreamChunkEvent(chunk_content=message.message.text, from_variable_selector=[node_id, "text"])
@@ -398,8 +396,6 @@ class ToolNode(BaseNode):
         else:
             json_output.append({"data": []})
 
-        logging.error("text: %s", text)
-        logging.error("json: %s", json_output)
         yield RunCompletedEvent(
             run_result=NodeRunResult(
                 status=WorkflowNodeExecutionStatus.SUCCEEDED,

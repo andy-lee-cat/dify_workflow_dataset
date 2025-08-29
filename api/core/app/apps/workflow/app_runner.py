@@ -113,6 +113,7 @@ class WorkflowAppRunner(WorkflowBasedAppRunner):
             call_depth=self.application_generate_entity.call_depth,
             variable_pool=variable_pool,
             thread_pool_id=self.workflow_thread_pool_id,
+            streaming=self.application_generate_entity.stream
         )
 
         generator = workflow_entry.run(callbacks=workflow_callbacks)

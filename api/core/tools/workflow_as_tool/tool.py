@@ -70,7 +70,6 @@ class WorkflowTool(Tool):
         invoke the tool
         """
         is_streaming_request = tool_parameters.pop('__tool_streaming', False)
-        is_streaming_request = True
         app = self._get_app(app_id=self.workflow_app_id)
         workflow = self._get_workflow(app_id=self.workflow_app_id, version=self.version)
 

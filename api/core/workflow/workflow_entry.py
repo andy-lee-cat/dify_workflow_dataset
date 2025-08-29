@@ -48,6 +48,7 @@ class WorkflowEntry:
         call_depth: int,
         variable_pool: VariablePool,
         thread_pool_id: Optional[str] = None,
+        streaming: bool = False,
     ) -> None:
         """
         Init workflow entry
@@ -63,6 +64,7 @@ class WorkflowEntry:
         :param call_depth: call depth
         :param variable_pool: variable pool
         :param thread_pool_id: thread pool id
+        :param streaming: streaming flag
         """
         # check call depth
         workflow_call_max_depth = dify_config.WORKFLOW_CALL_MAX_DEPTH
@@ -70,7 +72,11 @@ class WorkflowEntry:
             raise ValueError(f"Max workflow call depth {workflow_call_max_depth} reached.")
 
         # init workflow run state
-        graph_runtime_state = GraphRuntimeState(variable_pool=variable_pool, start_at=time.perf_counter())
+        graph_runtime_state = GraphRuntimeState(
+            variable_pool=variable_pool, 
+            start_at=time.perf_counter(),
+            streaming=streaming
+        )
         self.graph_engine = GraphEngine(
             tenant_id=tenant_id,
             app_id=app_id,

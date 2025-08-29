@@ -63,7 +63,6 @@ class ToolNodeData(BaseNodeData, ToolEntity):
     # If this value is None, it indicates this is a previous version
     # and requires using the legacy parameter parsing rules.
     tool_node_version: str | None = None
-    streaming: bool = False
 
     @field_validator("tool_parameters", mode="before")
     @classmethod
