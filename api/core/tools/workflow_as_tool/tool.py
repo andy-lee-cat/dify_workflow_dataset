@@ -12,6 +12,7 @@ from core.tools.entities.tool_entities import (
     ToolParameter,
     ToolProviderType,
 )
+from core.app.entities.task_entities import StreamEvent
 from core.tools.errors import ToolInvokeError
 from extensions.ext_database import db
 from factories.file_factory import build_from_mapping
@@ -103,11 +104,12 @@ class WorkflowTool(Tool):
                 event_type = item.get("event")
                 data = item.get("data", {})
 
-                if event_type == "text_chunk":
+                if event_type == StreamEvent.TEXT_CHUNK.value:
                     text_chunk = data.get('text', '')
                     if text_chunk:
                         yield self.create_text_message(text_chunk)
                 elif event_type == "workflow_finished":
+                    logger.info("WorkflowTool._invoke: Workflow finished. data[outputs]: %s", data.get("outputs"))
                     if data.get("outputs"):
                         outputs, files_from_outputs = self._extract_files(data.get("outputs"))
                         output_files.extend(files_from_outputs)

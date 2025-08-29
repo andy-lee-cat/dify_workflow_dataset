@@ -239,7 +239,6 @@ class ToolNode(BaseNode):
         """
         Convert ToolInvokeMessages into tuple[plain_text, files]
         """
-        is_streaming = self._node_data.streaming
         # transform message and handle file storage
         message_stream = ToolFileMessageTransformer.transform_tool_invoke_messages(
             messages=messages,
@@ -399,6 +398,8 @@ class ToolNode(BaseNode):
         else:
             json_output.append({"data": []})
 
+        logging.error("text: %s", text)
+        logging.error("json: %s", json_output)
         yield RunCompletedEvent(
             run_result=NodeRunResult(
                 status=WorkflowNodeExecutionStatus.SUCCEEDED,
