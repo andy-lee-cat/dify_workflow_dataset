@@ -3,6 +3,7 @@ import logging
 from collections.abc import Generator
 from typing import Any, Optional, cast
 
+from core.app.entities.task_entities import StreamEvent
 from core.file import FILE_MODEL_IDENTITY, File, FileTransferMethod
 from core.tools.__base.tool import Tool
 from core.tools.__base.tool_runtime import ToolRuntime
@@ -12,7 +13,6 @@ from core.tools.entities.tool_entities import (
     ToolParameter,
     ToolProviderType,
 )
-from core.app.entities.task_entities import StreamEvent
 from core.tools.errors import ToolInvokeError
 from extensions.ext_database import db
 from factories.file_factory import build_from_mapping
