@@ -12,6 +12,7 @@ from core.tools.entities.tool_entities import (
     ToolParameter,
     ToolProviderType,
 )
+from core.app.entities.task_entities import StreamEvent
 from core.tools.errors import ToolInvokeError
 from extensions.ext_database import db
 from factories.file_factory import build_from_mapping
@@ -68,6 +69,10 @@ class WorkflowTool(Tool):
         """
         invoke the tool
         """
+        # 检查一下有没有这个参数__tool_streaming
+        logger.error("WorkflowTool._invoke: tool_parameters: %s", tool_parameters)
+        response_mode = tool_parameters.pop('__tool_streaming', "blocking")
+        is_streaming_request = response_mode == "streaming"
         app = self._get_app(app_id=self.workflow_app_id)
         workflow = self._get_workflow(app_id=self.workflow_app_id, version=self.version)
 
@@ -86,26 +91,55 @@ class WorkflowTool(Tool):
             user=current_user,
             args={"inputs": tool_parameters, "files": files},
             invoke_from=self.runtime.invoke_from,
-            streaming=False,
+            streaming=is_streaming_request,
             call_depth=self.workflow_call_depth + 1,
             workflow_thread_pool_id=self.thread_pool_id,
         )
-        assert isinstance(result, dict)
-        data = result.get("data", {})
+        if is_streaming_request:
+            final_outputs = {}
+            output_files = []
+            logger.info("WorkflowTool._invoke: Starting to iterate through result generator...")
+            for item in result:
+                if not isinstance(item, dict):
+                    continue
+                
+                event_type = item.get("event")
+                data = item.get("data", {})
 
-        if err := data.get("error"):
-            raise ToolInvokeError(err)
+                if event_type == StreamEvent.TEXT_CHUNK.value:
+                    text_chunk = data.get('text', '')
+                    if text_chunk:
+                        yield self.create_text_message(text_chunk)
+                elif event_type == "workflow_finished":
+                    logger.info("WorkflowTool._invoke: Workflow finished. data[outputs]: %s", data.get("outputs"))
+                    if data.get("outputs"):
+                        outputs, files_from_outputs = self._extract_files(data.get("outputs"))
+                        output_files.extend(files_from_outputs)
+                        final_outputs = outputs
+            logger.info("WorkflowTool._invoke: Finished iterating through result generator.")
 
-        outputs = data.get("outputs")
-        if outputs is None:
-            outputs = {}
+            for file in output_files:
+                yield self.create_file_message(file)
+                
+            if final_outputs:
+                yield self.create_json_message(final_outputs)
         else:
-            outputs, files = self._extract_files(outputs)  # type: ignore
-            for file in files:
-                yield self.create_file_message(file)  # type: ignore
+            assert isinstance(result, dict)
+            data = result.get("data", {})
 
-        yield self.create_text_message(json.dumps(outputs, ensure_ascii=False))
-        yield self.create_json_message(outputs)
+            if err := data.get("error"):
+                raise ToolInvokeError(err)
+
+            outputs = data.get("outputs")
+            if outputs is None:
+                outputs = {}
+            else:
+                outputs, files = self._extract_files(outputs)  # type: ignore
+                for file in files:
+                    yield self.create_file_message(file)  # type: ignore
+
+            yield self.create_text_message(json.dumps(outputs, ensure_ascii=False))
+            yield self.create_json_message(outputs)
 
     def fork_tool_runtime(self, runtime: ToolRuntime) -> "WorkflowTool":
         """
