@@ -96,10 +96,12 @@ class WorkflowService:
         )
         return db.session.execute(stmt).scalar_one()
 
-    def get_draft_workflow(self, app_model: App) -> Optional[Workflow]:
+    def get_draft_workflow(self, app_model: App, workflow_id: Optional[str] = None) -> Optional[Workflow]:
         """
         Get draft workflow
         """
+        if workflow_id:
+            return self.get_published_workflow_by_id(app_model, workflow_id)
         # fetch draft workflow by app_model
         workflow = (
             db.session.query(Workflow)
@@ -115,7 +117,9 @@ class WorkflowService:
         return workflow
 
     def get_published_workflow_by_id(self, app_model: App, workflow_id: str) -> Optional[Workflow]:
-        # fetch published workflow by workflow_id
+        """
+        fetch published workflow by workflow_id
+        """
         workflow = (
             db.session.query(Workflow)
             .where(
@@ -587,7 +591,7 @@ class WorkflowService:
 
         return new_app
 
-    def validate_features_structure(self, app_model: App, features: dict) -> dict:
+    def validate_features_structure(self, app_model: App, features: dict):
         if app_model.mode == AppMode.ADVANCED_CHAT.value:
             return AdvancedChatAppConfigManager.config_validate(
                 tenant_id=app_model.tenant_id, config=features, only_structure_validate=True
@@ -676,6 +680,36 @@ class WorkflowService:
 
         session.delete(workflow)
         return True
+
+    def update_draft_workflow_node(self, draft_workflow: Workflow, node_id: str, provider_type: str) -> None:
+        """
+        Update a node provider_type in the draft workflow
+
+        :param draft_workflow: Draft workflow instance
+        :param node_id: Node ID to update
+        :param provider_type: New provider type
+        """
+        # Parse the graph
+        graph_dict = draft_workflow.graph_dict
+        
+        # Find and update the node provider_type
+        node_found = False
+        for node in graph_dict.get("nodes", []):
+            if node.get("id") == node_id:
+                node_data = node.get("data", {})
+                if node_data.get("type") == "tool":
+                    node_data["provider_type"] = provider_type
+                    node_found = True
+                    break
+        
+        if not node_found:
+            raise ValueError(f"Tool node with ID {node_id} not found in workflow")
+        
+        # Update the workflow in database
+        draft_workflow.graph = json.dumps(graph_dict)
+        draft_workflow.updated_at = naive_utc_now()
+        
+        db.session.commit()
 
 
 def _setup_variable_pool(

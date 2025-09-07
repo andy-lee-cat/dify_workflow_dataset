@@ -1,8 +1,11 @@
 import json
 import logging
 from collections.abc import Generator
-from typing import Any, Optional, cast
+from typing import Any, Optional
 
+from sqlalchemy import select
+
+from core.app.entities.task_entities import StreamEvent
 from core.file import FILE_MODEL_IDENTITY, File, FileTransferMethod
 from core.tools.__base.tool import Tool
 from core.tools.__base.tool_runtime import ToolRuntime
@@ -38,6 +41,7 @@ class WorkflowTool(Tool):
         runtime: ToolRuntime,
         label: str = "Workflow",
         thread_pool_id: Optional[str] = None,
+        streaming: bool = False,
     ):
         self.workflow_app_id = workflow_app_id
         self.workflow_as_tool_id = workflow_as_tool_id
@@ -46,6 +50,9 @@ class WorkflowTool(Tool):
         self.workflow_call_depth = workflow_call_depth
         self.thread_pool_id = thread_pool_id
         self.label = label
+        self.streaming = False
+        if streaming:
+            self.streaming = True
 
         super().__init__(entity=entity, runtime=runtime)
 
@@ -68,6 +75,7 @@ class WorkflowTool(Tool):
         """
         invoke the tool
         """
+        is_streaming_request = self.streaming
         app = self._get_app(app_id=self.workflow_app_id)
         workflow = self._get_workflow(app_id=self.workflow_app_id, version=self.version)
 
@@ -86,26 +94,55 @@ class WorkflowTool(Tool):
             user=current_user,
             args={"inputs": tool_parameters, "files": files},
             invoke_from=self.runtime.invoke_from,
-            streaming=False,
+            streaming=is_streaming_request,
             call_depth=self.workflow_call_depth + 1,
             workflow_thread_pool_id=self.thread_pool_id,
         )
-        assert isinstance(result, dict)
-        data = result.get("data", {})
+        if is_streaming_request:
+            final_outputs = {}
+            output_files = []
+            logger.info("WorkflowTool._invoke: Starting to iterate through result generator...")
+            for item in result:
+                if not isinstance(item, dict):
+                    continue
+                
+                event_type = item.get("event")
+                data = item.get("data", {})
 
-        if err := data.get("error"):
-            raise ToolInvokeError(err)
+                if event_type == StreamEvent.TEXT_CHUNK.value:
+                    text_chunk = data.get('text', '')
+                    if text_chunk:
+                        yield self.create_text_message(text_chunk)
+                elif event_type == "workflow_finished":
+                    logger.info("WorkflowTool._invoke: Workflow finished. data[outputs]: %s", data.get("outputs"))
+                    if data.get("outputs"):
+                        outputs, files_from_outputs = self._extract_files(data.get("outputs"))
+                        output_files.extend(files_from_outputs)
+                        final_outputs = outputs
+            logger.info("WorkflowTool._invoke: Finished iterating through result generator.")
 
-        outputs = data.get("outputs")
-        if outputs is None:
-            outputs = {}
+            for file in output_files:
+                yield self.create_file_message(file)
+                
+            if final_outputs:
+                yield self.create_json_message(final_outputs)
         else:
-            outputs, files = self._extract_files(outputs)  # type: ignore
-            for file in files:
-                yield self.create_file_message(file)  # type: ignore
+            assert isinstance(result, dict)
+            data = result.get("data", {})
 
-        yield self.create_text_message(json.dumps(outputs, ensure_ascii=False))
-        yield self.create_json_message(outputs)
+            if err := data.get("error"):
+                raise ToolInvokeError(err)
+
+            outputs = data.get("outputs")
+            if outputs is None:
+                outputs = {}
+            else:
+                outputs, files = self._extract_files(outputs)  # type: ignore
+                for file in files:
+                    yield self.create_file_message(file)  # type: ignore
+
+            yield self.create_text_message(json.dumps(outputs, ensure_ascii=False))
+            yield self.create_json_message(outputs)
 
     def fork_tool_runtime(self, runtime: ToolRuntime) -> "WorkflowTool":
         """
@@ -136,7 +173,8 @@ class WorkflowTool(Tool):
                 .first()
             )
         else:
-            workflow = db.session.query(Workflow).where(Workflow.app_id == app_id, Workflow.version == version).first()
+            stmt = select(Workflow).where(Workflow.app_id == app_id, Workflow.version == version)
+            workflow = db.session.scalar(stmt)
 
         if not workflow:
             raise ValueError("workflow not found or not published")
@@ -147,7 +185,8 @@ class WorkflowTool(Tool):
         """
         get the app by app id
         """
-        app = db.session.query(App).where(App.id == app_id).first()
+        stmt = select(App).where(App.id == app_id)
+        app = db.session.scalar(stmt)
         if not app:
             raise ValueError("app not found")
 
@@ -204,14 +243,14 @@ class WorkflowTool(Tool):
                         item = self._update_file_mapping(item)
                         file = build_from_mapping(
                             mapping=item,
-                            tenant_id=str(cast(ToolRuntime, self.runtime).tenant_id),
+                            tenant_id=str(self.runtime.tenant_id),
                         )
                         files.append(file)
             elif isinstance(value, dict) and value.get("dify_model_identity") == FILE_MODEL_IDENTITY:
                 value = self._update_file_mapping(value)
                 file = build_from_mapping(
                     mapping=value,
-                    tenant_id=str(cast(ToolRuntime, self.runtime).tenant_id),
+                    tenant_id=str(self.runtime.tenant_id),
                 )
                 files.append(file)
 
@@ -219,7 +258,7 @@ class WorkflowTool(Tool):
 
         return result, files
 
-    def _update_file_mapping(self, file_dict: dict) -> dict:
+    def _update_file_mapping(self, file_dict: dict):
         transfer_method = FileTransferMethod.value_of(file_dict.get("transfer_method"))
         if transfer_method == FileTransferMethod.TOOL_FILE:
             file_dict["tool_file_id"] = file_dict.get("related_id")

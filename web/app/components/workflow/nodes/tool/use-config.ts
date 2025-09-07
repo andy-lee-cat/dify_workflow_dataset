@@ -40,7 +40,10 @@ const useConfig = (id: string, payload: ToolNodeType) => {
   const mcpTools = useStore(s => s.mcpTools)
 
   const currentTools = useMemo(() => {
-    switch (provider_type) {
+    // Treat stream-workflow the same as workflow for tool collection
+    const normalizedProviderType = (provider_type as string) === 'stream-workflow' ? CollectionType.workflow : provider_type
+
+    switch (normalizedProviderType) {
       case CollectionType.builtIn:
         return buildInTools
       case CollectionType.custom:
@@ -140,7 +143,6 @@ const useConfig = (id: string, payload: ToolNodeType) => {
       return
     const inputsWithDefaultValue = formattingParameters()
     setInputs(inputsWithDefaultValue)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currTool])
 
   // setting when call

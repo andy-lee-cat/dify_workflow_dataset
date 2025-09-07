@@ -64,7 +64,7 @@ class EndStreamGeneratorRouter:
                 node_type = node.get("data", {}).get("type")
                 if (
                     variable_selector.value_selector not in value_selectors
-                    and node_type == NodeType.LLM.value
+                    and (node_type in (NodeType.LLM.value, NodeType.TOOL.value))
                     and variable_selector.value_selector[1] == "text"
                 ):
                     value_selectors.append(list(variable_selector.value_selector))
@@ -121,7 +121,7 @@ class EndStreamGeneratorRouter:
         node_id_config_mapping: dict[str, dict],
         reverse_edge_mapping: dict[str, list["GraphEdge"]],  # type: ignore[name-defined]
         end_dependencies: dict[str, list[str]],
-    ) -> None:
+    ):
         """
         Recursive fetch end dependencies
         :param current_node_id: current node id
